@@ -76,7 +76,7 @@ just a normal .es file that contains the body of the block.."
             (org-babel-join-splits-near-ch
              61 (org-babel-balanced-split headers-arg 32)))))
 
-(defun es-org-execute-request (jq-header &optional tablify request-data extra-headers)
+(defun es-org-execute-request (jq-header shell-header &optional tablify request-data extra-headers)
   "Executes a request with parameters that are above the request.
 Does not move the point."
   (interactive)
@@ -90,8 +90,8 @@ Does not move the point."
            extra-headers))
          (url-request-data (encode-coding-string request-data 'utf-8)))
     (when (es--warn-on-delete-yes-or-no-p url-request-method)
-      (message "Issuing %s against %s [jq=%s, tablify=%s]"
-               url-request-method url jq-header tablify)
+      (message "Issuing %s against %s [jq=%s, shell=%s, tablify=%s]"
+               url-request-method url jq-header shell-header tablify)
       (let* ((buffer (url-retrieve-synchronously url))
              (http-warnings (with-current-buffer buffer (es-extract-warnings))))
         (unless (zerop (buffer-size buffer))
@@ -102,7 +102,7 @@ Does not move the point."
                                (url-http-parse-response))
                              299))
                     (insert-buffer buffer)
-                  (when http-warnings
+                  (when (and http-warnings (not (equal http-warnings "")))
                     (insert "// Warning: "
                             http-warnings
                             "\n"))
@@ -111,7 +111,14 @@ Does not move the point."
                     (shell-command-on-region
                      (point-min)
                      (point-max)
-                     (format "%s %s" es-jq-path (shell-quote-argument jq-header))
+                     (format "%s -r %s" es-jq-path (shell-quote-argument jq-header))
+                     (current-buffer)
+                     t))
+                  (when shell-header
+                    (shell-command-on-region
+                     (point-min)
+                     (point-max)
+                     shell-header
                      (current-buffer)
                      t)))
                 (if tablify
@@ -134,6 +141,7 @@ to do that."
     (let* ((headers (es-org--parse-headers (cdr (assoc :headers params))))
            (output (es-org-execute-request
                     (cdr (assoc :jq params))
+                    (cdr (assoc :shell params))
                     (cdr (assoc :tablify params))
                     (es-get-request-body)
                     headers))
@@ -145,6 +153,7 @@ to do that."
                         "\n"
                         (es-org-execute-request
                          (cdr (assoc :jq params))
+                         (cdr (assoc :shell params))
                          (cdr (assoc :tablify params))
                          (es-get-request-body)
                          headers)))))
