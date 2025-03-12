@@ -109,12 +109,24 @@ Does not move the point."
                   (url-insert buffer)
                   (ignore-errors (json-pretty-print-buffer))
                   (when jq-header
-                    (shell-command-on-region
-                     (point-min)
-                     (point-max)
-                     (format "%s -r %s" es-jq-path (shell-quote-argument jq-header))
-                     (current-buffer)
-                     t))
+                    ;; Pull off any initial words in jq-header that begin with
+                    ;; `-` to pass them to jq as command-line options.  The
+                    ;; remaining jq-header text will be quoted as the jq
+                    ;; filter.  Note that the regexp is not smart enough to
+                    ;; handle quoted spaces in the options so those must be
+                    ;; avoided.
+                    ;; (rx string-start (zero-or-more (seq "-" (one-or-more (not (or " " "\t"))) (one-or-more (or " " "\t")))))
+                    ;; "\\`\\(?:-[^	 ]+[	 ]+\\)*"
+                    (let* ( (opts-re "\\`\\(\\(?:-[^	 ]+[	 ]+\\)*\\)\\(.*\\)")
+                            (m (string-match opts-re jq-header))
+                            (jq-options (match-string 1 jq-header))
+                            (jq-filter (match-string 2 jq-header)))
+                      (shell-command-on-region
+                        (point-min)
+                        (point-max)
+                        (format "%s -r %s %s" es-jq-path jq-options (shell-quote-argument jq-filter))
+                        (current-buffer)
+                        t)))
                   (when shell-header
                     (shell-command-on-region
                      (point-min)
