@@ -107,6 +107,7 @@ Does not move the point."
                             http-warnings
                             "\n"))
                   (url-insert buffer)
+                  (ignore-errors (json-pretty-print-buffer))
                   (when jq-header
                     (shell-command-on-region
                      (point-min)
